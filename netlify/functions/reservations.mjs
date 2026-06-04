@@ -12,7 +12,7 @@ async function ensureTable() {
   await sql`
     CREATE TABLE IF NOT EXISTS reservations (
       id          SERIAL PRIMARY KEY,
-      machine     INTEGER     NOT NULL,
+      machine     TEXT        NOT NULL,
       date        TEXT        NOT NULL,
       hour        INTEGER     NOT NULL,
       name        TEXT        NOT NULL,
@@ -48,14 +48,15 @@ export default async (req) => {
     // ---- Create a reservation ----
     if (req.method === "POST") {
       const body = await req.json().catch(() => ({}));
-      const machine = Number(body.machine);
+      const machine = String(body.machine || "").trim();
       const date = String(body.date || "");
       const hour = Number(body.hour);
       const name = String(body.name || "").trim();
       const room = String(body.room || "").trim();
 
-      // Basic validation
-      if (![1, 2].includes(machine)) return json({ error: "Invalid machine." }, 400);
+      // Basic validation. The set of valid machines lives in the frontend
+      // (the MACHINES array); the backend just requires a non-empty name.
+      if (!machine) return json({ error: "Invalid machine." }, 400);
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: "Invalid date." }, 400);
       if (!Number.isInteger(hour) || hour < 0 || hour > 23)
         return json({ error: "Invalid hour." }, 400);

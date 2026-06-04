@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Washing Machine Reservation</title>
+  <title>Washing Machine & Fitness Reservation</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-100 min-h-screen text-slate-800">
   <div class="max-w-5xl mx-auto px-4 py-8">
     <header class="mb-8 text-center">
-      <h1 class="text-3xl font-bold text-slate-900">🧺 Washing Machine Reservation</h1>
+      <h1 class="text-3xl font-bold text-slate-900">🧺 Washing Machine & Fitness Reservation</h1>
+      <h2 class="text-slate-600 mt-2">Charal Prasit Lakeview</h2>
     </header>
 
     <!-- Machine tabs -->
@@ -63,11 +64,11 @@
   </div>
 
   <script>
-    const MACHINES = [1, 2, 3];
+    const MACHINES = ["Washing Machine 1", "Washing Machine 2", "Fitness Room"];
     const DAYS = 7;
     const API_URL = "/api/reservations";
 
-    let activeMachine = 1;
+    let activeMachine = MACHINES[0];
     let selectedDayIndex = 0; // 0 = today ... up to DAYS-1
     let pendingSlot = null; // { machine, dateKey, hour }
 
@@ -104,7 +105,7 @@
       container.innerHTML = "";
       MACHINES.forEach(m => {
         const btn = document.createElement("button");
-        btn.textContent = "Machine " + m;
+        btn.textContent = m;
         btn.className = "px-5 py-2 rounded-full font-medium transition " +
           (m === activeMachine
             ? "bg-indigo-600 text-white shadow"
@@ -206,7 +207,7 @@
     function openModal(machine, dKey, hour, label, dayLabel) {
       pendingSlot = { machine, dKey, hour };
       document.getElementById("modalDetails").textContent =
-        `Machine ${machine} • ${dayLabel} • ${label}`;
+        `${machine} • ${dayLabel} • ${label}`;
       form.reset();
       backdrop.classList.remove("hidden");
       backdrop.classList.add("flex");

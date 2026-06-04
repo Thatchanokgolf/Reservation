@@ -10,11 +10,17 @@
   <div class="max-w-5xl mx-auto px-4 py-8">
     <header class="mb-8 text-center">
       <h1 class="text-3xl font-bold text-slate-900">🧺 Washing Machine Reservation</h1>
-      <p class="text-slate-500 mt-2">Book a 1-hour slot for one of our 2 machines, up to 7 days ahead.</p>
     </header>
 
     <!-- Machine tabs -->
     <div class="flex justify-center gap-3 mb-6" id="machineTabs"></div>
+
+    <!-- Date selector -->
+    <div class="flex flex-col items-center gap-2 mb-6">
+      <label for="dateSelect" class="text-sm font-medium text-slate-700">Select a date</label>
+      <select id="dateSelect"
+              class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"></select>
+    </div>
 
     <!-- Legend -->
     <div class="flex flex-wrap justify-center gap-4 mb-8 text-sm">
@@ -57,11 +63,12 @@
   </div>
 
   <script>
-    const MACHINES = [1, 2];
+    const MACHINES = [1, 2, 3];
     const DAYS = 7;
     const API_URL = "/api/reservations";
 
     let activeMachine = 1;
+    let selectedDayIndex = 0; // 0 = today ... up to DAYS-1
     let pendingSlot = null; // { machine, dateKey, hour }
 
     // reservations: { "machine|YYYY-MM-DD|hour": { name, room } }
@@ -107,17 +114,40 @@
       });
     }
 
+    function dayForIndex(i) {
+      const day = new Date();
+      day.setHours(0, 0, 0, 0);
+      day.setDate(day.getDate() + i);
+      return day;
+    }
+
+    function buildDateSelect() {
+      const select = document.getElementById("dateSelect");
+      select.innerHTML = "";
+      for (let i = 0; i < DAYS; i++) {
+        const day = dayForIndex(i);
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = day.toLocaleDateString(undefined, {
+          weekday: "long", month: "short", day: "numeric"
+        }) + (i === 0 ? " (Today)" : "");
+        if (i === selectedDayIndex) opt.selected = true;
+        select.appendChild(opt);
+      }
+      select.onchange = () => { selectedDayIndex = Number(select.value); render(); };
+    }
+
     function render() {
       buildMachineTabs();
+      buildDateSelect();
       const schedule = document.getElementById("schedule");
       schedule.innerHTML = "";
 
       const now = new Date();
 
-      for (let i = 0; i < DAYS; i++) {
-        const day = new Date();
-        day.setHours(0, 0, 0, 0);
-        day.setDate(day.getDate() + i);
+      {
+        const i = selectedDayIndex;
+        const day = dayForIndex(i);
         const dKey = dateKey(day);
 
         const card = document.createElement("div");

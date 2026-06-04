@@ -1,7 +1,7 @@
 {
   "name": "washing-machine-reservation",
   "version": "1.0.0",
-  "description": "Washing machine reservation app backed by Netlify DB (Neon Postgres).",
+  "description": "Washing machine reservation app backed by Neon (Postgres).",
   "type": "module",
   "dependencies": {
     "@netlify/neon": "^0.1.0"

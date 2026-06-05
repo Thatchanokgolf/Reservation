@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reservation Data — Informatics</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SheetJS for real .xlsx export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800">
+  <div class="max-w-6xl mx-auto px-4 py-8">
+    <header class="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 class="text-3xl font-bold text-slate-900">📊 Reservation Data</h1>
+        <p class="text-slate-500 mt-1">Charal Prasit Lakeview — informatics dashboard</p>
+      </div>
+      <a href="index.html" class="text-sm font-medium text-indigo-600 hover:text-indigo-800">← Back to booking</a>
+    </header>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-2xl shadow-sm p-5 mb-6">
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">From date</label>
+          <input type="date" id="filterFrom"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700 mb-1">To date</label>
+          <input type="date" id="filterTo"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div class="flex items-end">
+          <button id="clearBtn"
+                  class="w-full rounded-lg border border-slate-300 py-2 font-medium text-slate-600 hover:bg-slate-50">Clear filters</button>
+        </div>
+        <div class="flex items-end">
+          <button id="exportBtn"
+                  class="w-full rounded-lg bg-green-600 py-2 font-medium text-white hover:bg-green-700">⬇ Export to Excel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Per-machine reservation counts for the selected date -->
+    <div class="mb-6">
+      <h2 id="countsHeading" class="text-sm font-semibold text-slate-700 mb-3"></h2>
+      <div id="machineCounts" class="grid grid-cols-1 sm:grid-cols-3 gap-4"></div>
+    </div>
+
+    <!-- Data table -->
+    <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100">
+        <h2 class="font-semibold text-slate-900">Reservations</h2>
+        <span id="rowCount" class="text-sm text-slate-500"></span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-slate-600">
+            <tr>
+              <th class="text-left font-medium px-4 py-3">Machine</th>
+              <th class="text-left font-medium px-4 py-3">Date</th>
+              <th class="text-left font-medium px-4 py-3">Time</th>
+              <th class="text-left font-medium px-4 py-3">Name</th>
+              <th class="text-left font-medium px-4 py-3">Room No.</th>
+              <th class="text-left font-medium px-4 py-3">Phone</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+      <div id="emptyState" class="hidden px-5 py-10 text-center text-slate-400">No reservations match the current filters.</div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = "/api/reservations";
+    const MACHINES = ["Washing Machine 1 (Floor 9)", "Washing Machine 2 (Floor 1)", "Fitness Room"];
+
+    let allRows = [];
+
+    function pad(n) { return String(n).padStart(2, "0"); }
+    function timeLabel(h) { return `${pad(h)}:00 - ${pad(h + 1)}:00`; }
+    function esc(s) {
+      return String(s ?? "").replace(/[&<>"']/g, c =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    async function loadData() {
+      try {
+        const res = await fetch(API_URL);
+        if (!res.ok) throw new Error("Failed to load data.");
+        const data = await res.json();
+        allRows = (data.reservations || []).map(r => ({
+          machine: r.machine,
+          date: r.date,
+          hour: Number(r.hour),
+          name: r.name,
+          room: r.room,
+          phone: r.phone || "",
+        }));
+      } catch (e) {
+        console.error(e);
+        allRows = [];
+      }
+      render();
+    }
+
+    function getFilters() {
+      return {
+        from: document.getElementById("filterFrom").value, // YYYY-MM-DD or ""
+        to: document.getElementById("filterTo").value,     // YYYY-MM-DD or ""
+      };
+    }
+
+    function applyFilters(rows, f) {
+      return rows.filter(r =>
+        (!f.from || r.date >= f.from) &&
+        (!f.to || r.date <= f.to)
+      );
+    }
+
+    function render() {
+      const f = getFilters();
+      const rows = applyFilters(allRows, f)
+        .sort((a, b) => a.date.localeCompare(b.date) || a.hour - b.hour || a.machine.localeCompare(b.machine));
+
+      // ---- Table ----
+      const body = document.getElementById("tableBody");
+      body.innerHTML = rows.map(r => `
+        <tr class="hover:bg-slate-50">
+          <td class="px-4 py-3">${esc(r.machine)}</td>
+          <td class="px-4 py-3">${esc(r.date)}</td>
+          <td class="px-4 py-3">${esc(timeLabel(r.hour))}</td>
+          <td class="px-4 py-3">${esc(r.name)}</td>
+          <td class="px-4 py-3">${esc(r.room)}</td>
+          <td class="px-4 py-3">${esc(r.phone)}</td>
+        </tr>`).join("");
+
+      document.getElementById("emptyState").classList.toggle("hidden", rows.length > 0);
+      document.getElementById("rowCount").textContent = `${rows.length} record${rows.length === 1 ? "" : "s"}`;
+
+      // ---- Per-machine counts for the selected date range ----
+      let rangeLabel;
+      if (f.from && f.to) rangeLabel = `${f.from} to ${f.to}`;
+      else if (f.from) rangeLabel = `from ${f.from}`;
+      else if (f.to) rangeLabel = `up to ${f.to}`;
+      else rangeLabel = "all dates";
+      document.getElementById("countsHeading").textContent =
+        `Reservations per machine (${rangeLabel})`;
+      const counts = MACHINES.map(m => ({
+        machine: m,
+        count: rows.filter(r => r.machine === m).length,
+      }));
+      document.getElementById("machineCounts").innerHTML = counts.map(c => `
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <div class="text-slate-500 text-sm">${esc(c.machine)}</div>
+          <div class="text-3xl font-bold text-indigo-600 mt-1">${c.count}</div>
+        </div>`).join("");
+    }
+
+    function exportExcel() {
+      const f = getFilters();
+      const rows = applyFilters(allRows, f)
+        .sort((a, b) => a.date.localeCompare(b.date) || a.hour - b.hour || a.machine.localeCompare(b.machine));
+
+      const sheetData = rows.map(r => ({
+        Machine: r.machine,
+        Date: r.date,
+        Time: timeLabel(r.hour),
+        Name: r.name,
+        "Room No.": r.room,
+        Phone: r.phone,
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(sheetData, {
+        header: ["Machine", "Date", "Time", "Name", "Room No.", "Phone"],
+      });
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Reservations");
+
+      const stamp = new Date().toISOString().slice(0, 10);
+      const suffix = (f.from || f.to) ? `_${f.from || "start"}_to_${f.to || "end"}` : "";
+      XLSX.writeFile(wb, `reservations${suffix}_${stamp}.xlsx`);
+    }
+
+    document.getElementById("filterFrom").addEventListener("change", render);
+    document.getElementById("filterTo").addEventListener("change", render);
+    document.getElementById("clearBtn").addEventListener("click", () => {
+      document.getElementById("filterFrom").value = "";
+      document.getElementById("filterTo").value = "";
+      render();
+    });
+    document.getElementById("exportBtn").addEventListener("click", exportExcel);
+
+    loadData();
+  </script>
+</body>
+</html>

@@ -17,6 +17,7 @@ async function ensureTable() {
       hour        INTEGER     NOT NULL,
       name        TEXT        NOT NULL,
       room        TEXT        NOT NULL,
+      phone       TEXT        NOT NULL DEFAULT '',
       created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
       UNIQUE (machine, date, hour)
     )
@@ -38,7 +39,7 @@ export default async (req) => {
     // ---- Retrieve all reservations ----
     if (req.method === "GET") {
       const rows = await sql`
-        SELECT machine, date, hour, name, room
+        SELECT machine, date, hour, name, room, phone
         FROM reservations
         ORDER BY date, hour, machine
       `;
@@ -53,6 +54,7 @@ export default async (req) => {
       const hour = Number(body.hour);
       const name = String(body.name || "").trim();
       const room = String(body.room || "").trim();
+      const phone = String(body.phone || "").trim();
 
       // Basic validation. The set of valid machines lives in the frontend
       // (the MACHINES array); the backend just requires a non-empty name.
@@ -61,12 +63,14 @@ export default async (req) => {
       if (!Number.isInteger(hour) || hour < 0 || hour > 23)
         return json({ error: "Invalid hour." }, 400);
       if (!name || !room) return json({ error: "Name and Room No. are required." }, 400);
+      if (!/^\d{3}$/.test(room)) return json({ error: "Room No. must be a 3-digit number." }, 400);
+      if (!phone) return json({ error: "Phone number is required." }, 400);
 
       try {
         const [row] = await sql`
-          INSERT INTO reservations (machine, date, hour, name, room)
-          VALUES (${machine}, ${date}, ${hour}, ${name}, ${room})
-          RETURNING machine, date, hour, name, room
+          INSERT INTO reservations (machine, date, hour, name, room, phone)
+          VALUES (${machine}, ${date}, ${hour}, ${name}, ${room}, ${phone})
+          RETURNING machine, date, hour, name, room, phone
         `;
         return json({ reservation: row }, 201);
       } catch (e) {

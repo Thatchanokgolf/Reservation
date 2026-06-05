@@ -64,7 +64,12 @@
         </div>
         <div>
           <label data-i18n="room" class="block text-sm font-medium text-slate-700 mb-1"></label>
-          <input type="text" id="inputRoom" required
+          <input type="text" id="inputRoom" required inputmode="numeric" pattern="\d{3}" maxlength="3"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div>
+          <label data-i18n="phone" class="block text-sm font-medium text-slate-700 mb-1"></label>
+          <input type="tel" id="inputPhone" required
                  class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
         <div class="flex gap-3 pt-2">
@@ -103,6 +108,12 @@
                   class="w-full rounded-lg bg-indigo-600 py-2 font-medium text-white hover:bg-indigo-700"></button>
         </div>
       </form>
+      <!-- Show the reserver's phone number on demand -->
+      <div class="pt-2">
+        <button type="button" id="showPhoneBtn" data-i18n="showPhone"
+                class="w-full rounded-lg border border-slate-300 py-2 font-medium text-slate-600 hover:bg-slate-50"></button>
+        <p id="phoneDisplay" class="text-sm font-medium text-slate-800 mt-2 text-center hidden"></p>
+      </div>
     </div>
   </div>
 
@@ -122,6 +133,13 @@
       return (MACHINE_LABELS[m] && MACHINE_LABELS[m][lang]) || m;
     }
 
+    // Available booking hours per machine (start inclusive, end exclusive on the
+    // slot's start hour). Default is the full day. Fitness Room: 08:00–22:00,
+    // i.e. slots 08:00–09:00 through 21:00–22:00.
+    const HOURS_BY_MACHINE = {
+      "Fitness Room": { start: 8, end: 22 },
+    };
+
     const DAYS = 7;
     const API_URL = "/api/reservations";
 
@@ -138,6 +156,8 @@
         reserveTitle: "Reserve a Slot",
         name: "Name",
         room: "Room No.",
+        phone: "Phone Number",
+        showPhone: "Show phone number",
         cancel: "Cancel",
         confirm: "Confirm",
         saving: "Saving...",
@@ -148,6 +168,7 @@
         incorrect: "✗ Incorrect — the name and room do not match this reservation.",
         confirmHeading: "✅ Reservation confirmed!",
         screenshotPrompt: "📸 Please take a screenshot of this page as proof of your reservation.",
+        roomError: "Room No. must be a 3-digit number.",
         saveError: "Could not save the reservation. Please try again.",
         networkError: "Network error. Please try again.",
         toggleLabel: "EN",
@@ -163,6 +184,8 @@
         reserveTitle: "จองช่องเวลา",
         name: "ชื่อ",
         room: "หมายเลขห้อง",
+        phone: "หมายเลขโทรศัพท์",
+        showPhone: "แสดงหมายเลขโทรศัพท์",
         cancel: "ยกเลิก",
         confirm: "ยืนยัน",
         saving: "กำลังบันทึก...",
@@ -173,6 +196,7 @@
         incorrect: "✗ ไม่ถูกต้อง — ชื่อและหมายเลขห้องไม่ตรงกับการจองนี้",
         confirmHeading: "✅ จองสำเร็จแล้ว!",
         screenshotPrompt: "📸 กรุณาถ่ายภาพหน้าจอนี้เก็บไว้เป็นหลักฐานการจอง",
+        roomError: "หมายเลขห้องต้องเป็นตัวเลข 3 หลัก",
         saveError: "ไม่สามารถบันทึกการจองได้ กรุณาลองใหม่อีกครั้ง",
         networkError: "เกิดข้อผิดพลาดของเครือข่าย กรุณาลองใหม่อีกครั้ง",
         toggleLabel: "ไทย",
@@ -213,7 +237,7 @@
         const data = await res.json();
         const map = {};
         for (const r of data.reservations || []) {
-          map[slotKey(r.machine, r.date, r.hour)] = { name: r.name, room: r.room };
+          map[slotKey(r.machine, r.date, r.hour)] = { name: r.name, room: r.room, phone: r.phone };
         }
         reservations = map;
       } catch (e) {
@@ -297,7 +321,10 @@
       const grid = document.createElement("div");
       grid.className = "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2";
 
-      for (let h = 0; h < 24; h++) {
+      // Per-machine opening hours. Fitness Room is limited to 08:00–22:00.
+      const range = HOURS_BY_MACHINE[activeMachine] || { start: 0, end: 24 };
+
+      for (let h = range.start; h < range.end; h++) {
         const btn = document.createElement("button");
         btn.textContent = timeLabel(h);
 
@@ -364,7 +391,9 @@
       if (!pendingSlot) return;
       const name = document.getElementById("inputName").value.trim();
       const room = document.getElementById("inputRoom").value.trim();
-      if (!name || !room) return;
+      const phone = document.getElementById("inputPhone").value.trim();
+      if (!name || !room || !phone) return;
+      if (!/^\d{3}$/.test(room)) { alert(t("roomError")); return; }
 
       const slot = pendingSlot;
       submitBtn.disabled = true;
@@ -374,7 +403,7 @@
         const res = await fetch(API_URL, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ machine: slot.machine, date: slot.dKey, hour: slot.hour, name, room }),
+          body: JSON.stringify({ machine: slot.machine, date: slot.dKey, hour: slot.hour, name, room, phone }),
         });
 
         if (!res.ok) {
@@ -384,7 +413,7 @@
           return;
         }
 
-        reservations[slotKey(slot.machine, slot.dKey, slot.hour)] = { name, room };
+        reservations[slotKey(slot.machine, slot.dKey, slot.hour)] = { name, room, phone };
         closeModal();
         render();
 
@@ -414,6 +443,7 @@
       document.getElementById("verifyDetails").textContent = slotDetails(slot);
       verifyForm.reset();
       verifyResult.classList.add("hidden");
+      document.getElementById("phoneDisplay").classList.add("hidden");
       verifyBackdrop.classList.remove("hidden");
       verifyBackdrop.classList.add("flex");
       document.getElementById("verifyName").focus();
@@ -440,6 +470,16 @@
       verifyResult.textContent = ok ? t("correct") : t("incorrect");
       verifyResult.className = "text-sm font-medium " + (ok ? "text-green-600" : "text-rose-600");
     });
+
+    // Reveal the reserver's phone number for the selected reserved slot.
+    document.getElementById("showPhoneBtn").onclick = () => {
+      if (!verifySlot) return;
+      const reserved = reservations[slotKey(verifySlot.machine, verifySlot.dKey, verifySlot.hour)];
+      const el = document.getElementById("phoneDisplay");
+      const phone = (reserved && reserved.phone) ? reserved.phone : "-";
+      el.textContent = `${t("phone")}: ${phone}`;
+      el.classList.remove("hidden");
+    };
 
     // ---------- Language toggle ----------
     document.getElementById("langToggle").onclick = () => {

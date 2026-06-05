@@ -63,7 +63,6 @@
               <th class="text-left font-medium px-4 py-3">Time</th>
               <th class="text-left font-medium px-4 py-3">Name</th>
               <th class="text-left font-medium px-4 py-3">Room No.</th>
-              <th class="text-left font-medium px-4 py-3">Phone</th>
             </tr>
           </thead>
           <tbody id="tableBody" class="divide-y divide-slate-100"></tbody>
@@ -134,7 +133,6 @@
           <td class="px-4 py-3">${esc(timeLabel(r.hour))}</td>
           <td class="px-4 py-3">${esc(r.name)}</td>
           <td class="px-4 py-3">${esc(r.room)}</td>
-          <td class="px-4 py-3">${esc(r.phone)}</td>
         </tr>`).join("");
 
       document.getElementById("emptyState").classList.toggle("hidden", rows.length > 0);
@@ -170,11 +168,10 @@
         Time: timeLabel(r.hour),
         Name: r.name,
         "Room No.": r.room,
-        Phone: r.phone,
       }));
 
       const ws = XLSX.utils.json_to_sheet(sheetData, {
-        header: ["Machine", "Date", "Time", "Name", "Room No.", "Phone"],
+        header: ["Machine", "Date", "Time", "Name", "Room No."],
       });
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Reservations");

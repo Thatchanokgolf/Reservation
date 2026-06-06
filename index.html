@@ -133,11 +133,13 @@
       return (MACHINE_LABELS[m] && MACHINE_LABELS[m][lang]) || m;
     }
 
-    // Available booking hours per machine (start inclusive, end exclusive on the
-    // slot's start hour). Default is the full day. Fitness Room: 08:00–22:00,
-    // i.e. slots 08:00–09:00 through 21:00–22:00.
+    // Per-machine schedule config.
+    // start/end: booking window (start inclusive, end is the last slot's start hour).
+    // interval: slot length in hours (default 1).
     const HOURS_BY_MACHINE = {
-      "Fitness Room": { start: 8, end: 22 },
+      "Washing Machine 1 (Floor 9)": { start: 0, end: 24, interval: 2 },
+      "Washing Machine 2 (Floor 1)": { start: 0, end: 24, interval: 2 },
+      "Fitness Room":                 { start: 8, end: 22, interval: 1 },
     };
 
     const DAYS = 7;
@@ -249,7 +251,10 @@
     function dateKey(d) { return d.toISOString().slice(0, 10); }
     function slotKey(machine, dKey, hour) { return `${machine}|${dKey}|${hour}`; }
     function pad(n) { return String(n).padStart(2, "0"); }
-    function timeLabel(h) { return `${pad(h)}:00 - ${pad(h + 1)}:00`; }
+    function intervalFor(machine) {
+      return (HOURS_BY_MACHINE[machine] && HOURS_BY_MACHINE[machine].interval) || 1;
+    }
+    function timeLabel(h, interval = 1) { return `${pad(h)}:00 - ${pad(h + interval)}:00`; }
     function esc(s) {
       return String(s).replace(/[&<>"']/g, c =>
         ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -267,7 +272,7 @@
         + (i === 0 ? t("today") : "");
     }
     function slotDetails(slot) {
-      return `${machineLabel(slot.machine)} • ${formatDay(slot.day, slot.dayIndex)} • ${timeLabel(slot.hour)}`;
+      return `${machineLabel(slot.machine)} • ${formatDay(slot.day, slot.dayIndex)} • ${timeLabel(slot.hour, intervalFor(slot.machine))}`;
     }
 
     // ---------- Rendering ----------
@@ -321,15 +326,15 @@
       const grid = document.createElement("div");
       grid.className = "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2";
 
-      // Per-machine opening hours. Fitness Room is limited to 08:00–22:00.
-      const range = HOURS_BY_MACHINE[activeMachine] || { start: 0, end: 24 };
+      const range = HOURS_BY_MACHINE[activeMachine] || { start: 0, end: 24, interval: 1 };
+      const interval = range.interval || 1;
 
-      for (let h = range.start; h < range.end; h++) {
+      for (let h = range.start; h < range.end; h += interval) {
         const btn = document.createElement("button");
-        btn.textContent = timeLabel(h);
+        btn.textContent = timeLabel(h, interval);
 
         const slotEnd = new Date(day);
-        slotEnd.setHours(h + 1, 0, 0, 0);
+        slotEnd.setHours(h + interval, 0, 0, 0);
 
         const isPast = slotEnd <= now;
         const reserved = reservations[slotKey(activeMachine, dKey, h)];
@@ -361,7 +366,7 @@
       document.getElementById("confirmDetails").innerHTML =
         `<p><span class="font-medium">${t("name")}:</span> ${esc(c.name)}</p>` +
         `<p><span class="font-medium">${t("room")}:</span> ${esc(c.room)}</p>` +
-        `<p>${esc(machineLabel(c.machine))} • ${esc(formatDay(c.day, c.dayIndex))} • ${timeLabel(c.hour)}</p>`;
+        `<p>${esc(machineLabel(c.machine))} • ${esc(formatDay(c.day, c.dayIndex))} • ${timeLabel(c.hour, intervalFor(c.machine))}</p>`;
     }
 
     // ---------- Reserve modal ----------

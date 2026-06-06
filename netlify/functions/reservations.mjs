@@ -82,6 +82,29 @@ export default async (req) => {
       }
     }
 
+    // ---- Delete a reservation ----
+    if (req.method === "DELETE") {
+      const body = await req.json().catch(() => ({}));
+      const password = String(body.password || "");
+      const machine = String(body.machine || "").trim();
+      const date = String(body.date || "");
+      const hour = Number(body.hour);
+
+      if (password !== "delete") return json({ error: "Incorrect password." }, 403);
+      if (!machine) return json({ error: "Invalid machine." }, 400);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ error: "Invalid date." }, 400);
+      if (!Number.isInteger(hour) || hour < 0 || hour > 23)
+        return json({ error: "Invalid hour." }, 400);
+
+      const result = await sql`
+        DELETE FROM reservations
+        WHERE machine = ${machine} AND date = ${date} AND hour = ${hour}
+        RETURNING id
+      `;
+      if (result.length === 0) return json({ error: "Reservation not found." }, 404);
+      return json({ deleted: true });
+    }
+
     return json({ error: "Method not allowed." }, 405);
   } catch (err) {
     console.error(err);

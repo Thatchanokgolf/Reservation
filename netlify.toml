@@ -7,3 +7,9 @@
   from = "/api/reservations"
   to = "/.netlify/functions/reservations"
   status = 200
+
+# Friendly path: /api/fitness -> the fitness function (separate Neon DB)
+[[redirects]]
+  from = "/api/fitness"
+  to = "/.netlify/functions/fitness"
+  status = 200

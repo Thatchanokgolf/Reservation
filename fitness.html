@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fitness Reservation</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800">
+  <div class="max-w-5xl mx-auto px-4 py-8">
+    <!-- Language toggle (top-right) -->
+    <div class="flex justify-end mb-2">
+      <button id="langToggle"
+              class="rounded-full border border-slate-300 bg-white px-4 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"></button>
+    </div>
+
+    <header class="mb-8 text-center">
+      <h1 data-i18n="title" class="text-3xl font-bold text-slate-900"></h1>
+      <h2 class="text-slate-600 mt-2">Charal Prasit Lakeview</h2>
+      <p data-i18n="instructions" class="text-slate-500 text-sm mt-3 max-w-2xl mx-auto"></p>
+    </header>
+
+    <!-- Date selector -->
+    <div class="flex flex-col items-center gap-2 mb-6">
+      <label for="dateSelect" data-i18n="selectDate" class="text-sm font-medium text-slate-700"></label>
+      <select id="dateSelect"
+              class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"></select>
+    </div>
+
+    <!-- Dashboard: number of reserved slots for the selected date -->
+    <div id="dashboard" class="grid grid-cols-3 gap-4 mb-6"></div>
+
+    <!-- Legend -->
+    <div class="flex flex-wrap justify-center gap-4 mb-8 text-sm">
+      <div class="flex items-center gap-2"><span class="w-4 h-4 rounded bg-white border border-slate-300 inline-block"></span><span data-i18n="available"></span></div>
+      <div class="flex items-center gap-2"><span class="w-4 h-4 rounded bg-amber-400 inline-block"></span><span data-i18n="partlyFull"></span></div>
+      <div class="flex items-center gap-2"><span class="w-4 h-4 rounded bg-rose-500 inline-block"></span><span data-i18n="full"></span></div>
+      <div class="flex items-center gap-2"><span class="w-4 h-4 rounded bg-slate-200 inline-block"></span><span data-i18n="past"></span></div>
+    </div>
+
+    <!-- Schedule -->
+    <div id="schedule" class="space-y-6"></div>
+
+    <!-- Confirmation panel (shown after a successful reservation) -->
+    <div id="confirmation" class="hidden mt-8 rounded-2xl border-2 border-green-500 bg-green-50 p-6 text-center">
+      <h3 data-i18n="confirmHeading" class="text-lg font-bold text-green-700"></h3>
+      <div id="confirmDetails" class="mt-3 text-slate-800 space-y-1"></div>
+      <p data-i18n="screenshotPrompt" class="mt-4 font-semibold text-green-800"></p>
+    </div>
+  </div>
+
+  <!-- Reservation Modal -->
+  <div id="modalBackdrop" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+      <div class="flex justify-between items-start mb-1">
+        <h2 data-i18n="reserveTitle" class="text-xl font-bold text-slate-900"></h2>
+        <button id="closeModal" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+      </div>
+      <p id="modalDetails" class="text-sm text-slate-500 mb-5"></p>
+      <form id="reserveForm" class="space-y-4">
+        <div>
+          <label data-i18n="name" class="block text-sm font-medium text-slate-700 mb-1"></label>
+          <input type="text" id="inputName" required
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div>
+          <label data-i18n="room" class="block text-sm font-medium text-slate-700 mb-1"></label>
+          <input type="text" id="inputRoom" required inputmode="numeric" pattern="\d{3}" maxlength="3"
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div>
+          <label data-i18n="phone" class="block text-sm font-medium text-slate-700 mb-1"></label>
+          <input type="tel" id="inputPhone" required
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div class="flex gap-3 pt-2">
+          <button type="button" id="cancelBtn" data-i18n="cancel"
+                  class="flex-1 rounded-lg border border-slate-300 py-2 font-medium text-slate-600 hover:bg-slate-50"></button>
+          <button type="submit" id="confirmBtn" data-i18n="confirm"
+                  class="flex-1 rounded-lg bg-indigo-600 py-2 font-medium text-white hover:bg-indigo-700"></button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Verify Reservation Modal (no phone number shown) -->
+  <div id="verifyBackdrop" class="fixed inset-0 bg-black/50 hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+      <div class="flex justify-between items-start mb-1">
+        <h2 data-i18n="verifyTitle" class="text-xl font-bold text-slate-900"></h2>
+        <button id="closeVerify" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">&times;</button>
+      </div>
+      <p id="verifyDetails" class="text-sm text-slate-500 mb-5"></p>
+      <form id="verifyForm" class="space-y-4">
+        <div>
+          <label data-i18n="name" class="block text-sm font-medium text-slate-700 mb-1"></label>
+          <input type="text" id="verifyName" required
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div>
+          <label data-i18n="room" class="block text-sm font-medium text-slate-700 mb-1"></label>
+          <input type="text" id="verifyRoom" required
+                 class="w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <p id="verifyResult" class="text-sm font-medium hidden"></p>
+        <div class="pt-2">
+          <button type="submit" data-i18n="verify"
+                  class="w-full rounded-lg bg-indigo-600 py-2 font-medium text-white hover:bg-indigo-700"></button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const DAYS = 7;
+    const START_HOUR = 8;   // first slot starts at 08:00
+    const END_HOUR = 22;    // last slot ends at 22:00 (so starts run 8..21)
+    const CAPACITY = 3;     // reservations allowed per time slot
+    const API_URL = "/api/fitness";
+
+    // ---------- Internationalization ----------
+    const I18N = {
+      en: {
+        title: "🏋️ Fitness Reservation",
+        instructions: "Choose a date, then tap an available time slot to reserve. Each hour has 3 spots. Tap a full (red) slot to verify a booking.",
+        selectDate: "Select a date",
+        available: "Available",
+        partlyFull: "Partly booked",
+        full: "Full",
+        past: "Past",
+        today: " (Today)",
+        reserveTitle: "Reserve a Slot",
+        name: "Name",
+        room: "Room No.",
+        phone: "Phone Number",
+        cancel: "Cancel",
+        confirm: "Confirm",
+        saving: "Saving...",
+        verifyTitle: "Verify Reservation",
+        verify: "Verify",
+        fullClickVerify: "Full — click to verify",
+        correct: "✓ Correct — the name and room match a reservation in this slot.",
+        incorrect: "✗ Incorrect — no reservation in this slot matches that name and room.",
+        confirmHeading: "✅ Reservation confirmed!",
+        screenshotPrompt: "📸 Please take a screenshot of this page as proof of your reservation.",
+        roomError: "Room No. must be a 3-digit number.",
+        saveError: "Could not save the reservation. Please try again.",
+        slotFull: "Sorry, this time slot just became full.",
+        duplicate: "This name and room already have a reservation for this time slot.",
+        networkError: "Network error. Please try again.",
+        reservedSlots: "Reserved",
+        freeSlots: "Available",
+        fullSlots: "Full hours",
+      },
+      th: {
+        title: "🏋️ จองฟิตเนส",
+        instructions: "เลือกวันที่ จากนั้นแตะช่องเวลาที่ว่างเพื่อทำการจอง แต่ละชั่วโมงมี 3 ที่นั่ง แตะช่องที่เต็ม (สีแดง) เพื่อตรวจสอบการจอง",
+        selectDate: "เลือกวันที่",
+        available: "ว่าง",
+        partlyFull: "จองบางส่วน",
+        full: "เต็ม",
+        past: "เวลาที่ผ่านมา",
+        today: " (วันนี้)",
+        reserveTitle: "จองช่องเวลา",
+        name: "ชื่อ",
+        room: "หมายเลขห้อง",
+        phone: "หมายเลขโทรศัพท์",
+        cancel: "ยกเลิก",
+        confirm: "ยืนยัน",
+        saving: "กำลังบันทึก...",
+        verifyTitle: "ตรวจสอบการจอง",
+        verify: "ตรวจสอบ",
+        fullClickVerify: "เต็ม — คลิกเพื่อตรวจสอบ",
+        correct: "✓ ถูกต้อง — ชื่อและหมายเลขห้องตรงกับการจองในช่องนี้",
+        incorrect: "✗ ไม่ถูกต้อง — ไม่มีการจองในช่องนี้ที่ตรงกับชื่อและหมายเลขห้อง",
+        confirmHeading: "✅ จองสำเร็จแล้ว!",
+        screenshotPrompt: "📸 กรุณาถ่ายภาพหน้าจอนี้เก็บไว้เป็นหลักฐานการจอง",
+        roomError: "หมายเลขห้องต้องเป็นตัวเลข 3 หลัก",
+        saveError: "ไม่สามารถบันทึกการจองได้ กรุณาลองใหม่อีกครั้ง",
+        slotFull: "ขออภัย ช่องเวลานี้เพิ่งเต็ม",
+        duplicate: "ชื่อและหมายเลขห้องนี้ได้จองช่องเวลานี้ไว้แล้ว",
+        networkError: "เกิดข้อผิดพลาดของเครือข่าย กรุณาลองใหม่อีกครั้ง",
+        reservedSlots: "ถูกจองแล้ว",
+        freeSlots: "ว่าง",
+        fullSlots: "ชั่วโมงที่เต็ม",
+      },
+    };
+
+    let lang = localStorage.getItem("lang") || "th"; // default Thai
+    function t(key) { return (I18N[lang] && I18N[lang][key]) || I18N.en[key] || key; }
+
+    function applyLang() {
+      document.documentElement.lang = lang;
+      document.querySelectorAll("[data-i18n]").forEach(el => {
+        el.textContent = t(el.getAttribute("data-i18n"));
+      });
+      document.getElementById("langToggle").textContent = lang === "th" ? "EN" : "ไทย";
+      render();
+      renderConfirmation();
+      if (pendingSlot) document.getElementById("modalDetails").textContent = slotDetails(pendingSlot);
+      if (verifySlot) document.getElementById("verifyDetails").textContent = slotDetails(verifySlot);
+    }
+
+    // ---------- State ----------
+    let selectedDayIndex = 0;
+    let pendingSlot = null;   // { dKey, hour, day, dayIndex }
+    let verifySlot = null;
+    let lastConfirmation = null;
+
+    // reservations: { "YYYY-MM-DD|hour": [ { name, room }, ... ] }
+    let reservations = {};
+
+    async function loadReservations() {
+      try {
+        const res = await fetch(API_URL);
+        if (!res.ok) throw new Error("Failed to load reservations.");
+        const data = await res.json();
+        const map = {};
+        for (const r of data.reservations || []) {
+          const k = slotKey(r.date, r.hour);
+          (map[k] = map[k] || []).push({ name: r.name, room: r.room });
+        }
+        reservations = map;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // ---------- Helpers ----------
+    function dateKey(d) { return d.toISOString().slice(0, 10); }
+    function slotKey(dKey, hour) { return `${dKey}|${hour}`; }
+    function pad(n) { return String(n).padStart(2, "0"); }
+    function timeLabel(h) { return `${pad(h)}:00 - ${pad(h + 1)}:00`; }
+    function countFor(dKey, hour) { return (reservations[slotKey(dKey, hour)] || []).length; }
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, c =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    function dayForIndex(i) {
+      const day = new Date();
+      day.setHours(0, 0, 0, 0);
+      day.setDate(day.getDate() + i);
+      return day;
+    }
+    function formatDay(day, i) {
+      const locale = lang === "th" ? "th-TH" : "en-US";
+      return day.toLocaleDateString(locale, { weekday: "long", month: "short", day: "numeric" })
+        + (i === 0 ? t("today") : "");
+    }
+    function slotDetails(slot) {
+      return `${t("title")} • ${formatDay(slot.day, slot.dayIndex)} • ${timeLabel(slot.hour)}`;
+    }
+
+    // ---------- Rendering ----------
+    function buildDateSelect() {
+      const select = document.getElementById("dateSelect");
+      select.innerHTML = "";
+      for (let i = 0; i < DAYS; i++) {
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = formatDay(dayForIndex(i), i);
+        if (i === selectedDayIndex) opt.selected = true;
+        select.appendChild(opt);
+      }
+      select.onchange = () => { selectedDayIndex = Number(select.value); render(); };
+    }
+
+    function renderDashboard(dKey) {
+      const totalSlots = END_HOUR - START_HOUR;          // hours in the day
+      const totalCapacity = totalSlots * CAPACITY;
+      let reserved = 0, fullHours = 0;
+      for (let h = START_HOUR; h < END_HOUR; h++) {
+        const c = countFor(dKey, h);
+        reserved += c;
+        if (c >= CAPACITY) fullHours++;
+      }
+      const cards = [
+        { label: t("reservedSlots"), value: `${reserved} / ${totalCapacity}`, color: "text-indigo-600" },
+        { label: t("freeSlots"), value: `${totalCapacity - reserved}`, color: "text-green-600" },
+        { label: t("fullSlots"), value: `${fullHours} / ${totalSlots}`, color: "text-rose-600" },
+      ];
+      document.getElementById("dashboard").innerHTML = cards.map(c => `
+        <div class="bg-white rounded-2xl shadow-sm p-4 text-center">
+          <div class="text-slate-500 text-xs">${esc(c.label)}</div>
+          <div class="text-2xl font-bold ${c.color} mt-1">${esc(c.value)}</div>
+        </div>`).join("");
+    }
+
+    function render() {
+      buildDateSelect();
+      const schedule = document.getElementById("schedule");
+      schedule.innerHTML = "";
+
+      const now = new Date();
+      const i = selectedDayIndex;
+      const day = dayForIndex(i);
+      const dKey = dateKey(day);
+
+      renderDashboard(dKey);
+
+      const card = document.createElement("div");
+      card.className = "bg-white rounded-2xl shadow-sm p-5";
+
+      const heading = document.createElement("h3");
+      heading.className = "font-semibold text-slate-900 mb-4";
+      heading.textContent = formatDay(day, i);
+      card.appendChild(heading);
+
+      const grid = document.createElement("div");
+      grid.className = "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2";
+
+      for (let h = START_HOUR; h < END_HOUR; h++) {
+        const btn = document.createElement("button");
+        const count = countFor(dKey, h);
+        btn.innerHTML = `<div>${timeLabel(h)}</div><div class="text-[11px] opacity-90">${count}/${CAPACITY}</div>`;
+
+        const slotEnd = new Date(day);
+        slotEnd.setHours(h + 1, 0, 0, 0);
+        const isPast = slotEnd <= now;
+        const isFull = count >= CAPACITY;
+
+        btn.className = "text-xs font-medium rounded-lg py-2 px-1 border transition ";
+
+        if (isPast) {
+          btn.disabled = true;
+          btn.className += "bg-slate-200 text-slate-400 border-slate-200 cursor-not-allowed line-through";
+        } else if (isFull) {
+          btn.className += "bg-rose-500 text-white border-rose-500 hover:bg-rose-600 cursor-pointer";
+          btn.title = t("fullClickVerify");
+          btn.onclick = () => openVerify({ dKey, hour: h, day, dayIndex: i });
+        } else if (count > 0) {
+          btn.className += "bg-amber-400 text-amber-950 border-amber-400 hover:bg-amber-500 cursor-pointer";
+          btn.onclick = () => openModal({ dKey, hour: h, day, dayIndex: i });
+        } else {
+          btn.className += "bg-white text-slate-700 border-slate-300 hover:bg-indigo-50 hover:border-indigo-400 hover:text-indigo-700";
+          btn.onclick = () => openModal({ dKey, hour: h, day, dayIndex: i });
+        }
+
+        grid.appendChild(btn);
+      }
+
+      card.appendChild(grid);
+      schedule.appendChild(card);
+    }
+
+    function renderConfirmation() {
+      if (!lastConfirmation) return;
+      const c = lastConfirmation;
+      document.getElementById("confirmDetails").innerHTML =
+        `<p><span class="font-medium">${t("name")}:</span> ${esc(c.name)}</p>` +
+        `<p><span class="font-medium">${t("room")}:</span> ${esc(c.room)}</p>` +
+        `<p>${esc(t("title"))} • ${esc(formatDay(c.day, c.dayIndex))} • ${timeLabel(c.hour)}</p>`;
+    }
+
+    // ---------- Reserve modal ----------
+    const backdrop = document.getElementById("modalBackdrop");
+    const form = document.getElementById("reserveForm");
+    const submitBtn = document.getElementById("confirmBtn");
+
+    function openModal(slot) {
+      pendingSlot = slot;
+      document.getElementById("modalDetails").textContent = slotDetails(slot);
+      form.reset();
+      backdrop.classList.remove("hidden");
+      backdrop.classList.add("flex");
+      document.getElementById("inputName").focus();
+    }
+    function closeModal() {
+      pendingSlot = null;
+      backdrop.classList.add("hidden");
+      backdrop.classList.remove("flex");
+    }
+    document.getElementById("closeModal").onclick = closeModal;
+    document.getElementById("cancelBtn").onclick = closeModal;
+    backdrop.addEventListener("click", e => { if (e.target === backdrop) closeModal(); });
+
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      if (!pendingSlot) return;
+      const name = document.getElementById("inputName").value.trim();
+      const room = document.getElementById("inputRoom").value.trim();
+      const phone = document.getElementById("inputPhone").value.trim();
+      if (!name || !room || !phone) return;
+      if (!/^\d{3}$/.test(room)) { alert(t("roomError")); return; }
+
+      const slot = pendingSlot;
+      submitBtn.disabled = true;
+      submitBtn.textContent = t("saving");
+
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ date: slot.dKey, hour: slot.hour, name, room, phone }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data.code === "duplicate") {
+            alert(t("duplicate"));
+            return; // keep the modal open so they can change the details
+          }
+          alert(res.status === 409 ? t("slotFull") : (data.error || t("saveError")));
+          if (res.status === 409) { await loadReservations(); render(); closeModal(); }
+          return;
+        }
+
+        const k = slotKey(slot.dKey, slot.hour);
+        (reservations[k] = reservations[k] || []).push({ name, room });
+        closeModal();
+        render();
+
+        lastConfirmation = { name, room, day: slot.day, dayIndex: slot.dayIndex, hour: slot.hour };
+        renderConfirmation();
+        const confEl = document.getElementById("confirmation");
+        confEl.classList.remove("hidden");
+        confEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      } catch (err) {
+        console.error(err);
+        alert(t("networkError"));
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = t("confirm");
+      }
+    });
+
+    // ---------- Verify modal (no phone shown) ----------
+    const verifyBackdrop = document.getElementById("verifyBackdrop");
+    const verifyForm = document.getElementById("verifyForm");
+    const verifyResult = document.getElementById("verifyResult");
+
+    function openVerify(slot) {
+      verifySlot = slot;
+      document.getElementById("verifyDetails").textContent = slotDetails(slot);
+      verifyForm.reset();
+      verifyResult.classList.add("hidden");
+      verifyBackdrop.classList.remove("hidden");
+      verifyBackdrop.classList.add("flex");
+      document.getElementById("verifyName").focus();
+    }
+    function closeVerify() {
+      verifySlot = null;
+      verifyBackdrop.classList.add("hidden");
+      verifyBackdrop.classList.remove("flex");
+    }
+    document.getElementById("closeVerify").onclick = closeVerify;
+    verifyBackdrop.addEventListener("click", e => { if (e.target === verifyBackdrop) closeVerify(); });
+
+    verifyForm.addEventListener("submit", e => {
+      e.preventDefault();
+      if (!verifySlot) return;
+      const name = document.getElementById("verifyName").value.trim();
+      const room = document.getElementById("verifyRoom").value.trim();
+      if (!name || !room) return;
+
+      const list = reservations[slotKey(verifySlot.dKey, verifySlot.hour)] || [];
+      const norm = s => (s || "").trim().toLowerCase();
+      const ok = list.some(r => norm(r.name) === norm(name) && norm(r.room) === norm(room));
+
+      verifyResult.textContent = ok ? t("correct") : t("incorrect");
+      verifyResult.className = "text-sm font-medium " + (ok ? "text-green-600" : "text-rose-600");
+    });
+
+    // ---------- Language toggle ----------
+    document.getElementById("langToggle").onclick = () => {
+      lang = lang === "th" ? "en" : "th";
+      localStorage.setItem("lang", lang);
+      applyLang();
+    };
+
+    // ---------- Init ----------
+    (async () => {
+      applyLang();
+      await loadReservations();
+      render();
+    })();
+  </script>
+</body>
+</html>

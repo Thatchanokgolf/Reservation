@@ -71,6 +71,29 @@
       </div>
       <div id="emptyState" class="hidden px-5 py-10 text-center text-slate-400">No reservations match the current filters.</div>
     </div>
+
+    <!-- Fitness data table -->
+    <div class="bg-white rounded-2xl shadow-sm overflow-hidden mt-8">
+      <div class="flex items-center justify-between px-5 py-3 border-b border-slate-100">
+        <h2 class="font-semibold text-slate-900">🏋️ Fitness Reservations</h2>
+        <span id="fitnessRowCount" class="text-sm text-slate-500"></span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 text-slate-600">
+            <tr>
+              <th class="text-left font-medium px-4 py-3">Date</th>
+              <th class="text-left font-medium px-4 py-3">Time</th>
+              <th class="text-left font-medium px-4 py-3">Name</th>
+              <th class="text-left font-medium px-4 py-3">Room No.</th>
+              <th class="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody id="fitnessBody" class="divide-y divide-slate-100"></tbody>
+        </table>
+      </div>
+      <div id="fitnessEmptyState" class="hidden px-5 py-10 text-center text-slate-400">No fitness reservations match the current filters.</div>
+    </div>
   </div>
 
   <!-- Delete confirmation modal -->
@@ -97,9 +120,11 @@
 
   <script>
     const API_URL = "/api/reservations";
+    const FITNESS_API = "/api/fitness";
     const MACHINES = ["Washing Machine 1 (Floor 9)", "Washing Machine 2 (Floor 1)", "Fitness Room"];
 
     let allRows = [];
+    let fitnessRows = [];
 
     function pad(n) { return String(n).padStart(2, "0"); }
     function timeLabel(h) { return `${pad(h)}:00 - ${pad(h + 1)}:00`; }
@@ -125,6 +150,22 @@
         console.error(e);
         allRows = [];
       }
+
+      try {
+        const res = await fetch(FITNESS_API);
+        if (!res.ok) throw new Error("Failed to load fitness data.");
+        const data = await res.json();
+        fitnessRows = (data.reservations || []).map(r => ({
+          date: r.date,
+          hour: Number(r.hour),
+          name: r.name,
+          room: r.room,
+        }));
+      } catch (e) {
+        console.error(e);
+        fitnessRows = [];
+      }
+
       render();
     }
 
@@ -176,15 +217,41 @@
       else rangeLabel = "all dates";
       document.getElementById("countsHeading").textContent =
         `Reservations per machine (${rangeLabel})`;
+      const fitnessFilteredCount = applyFilters(fitnessRows, f).length;
       const counts = MACHINES.map(m => ({
         machine: m,
-        count: rows.filter(r => r.machine === m).length,
+        // "Fitness Room" now reflects the new fitness reservations table,
+        // not legacy rows in the washing-machine table.
+        count: m === "Fitness Room"
+          ? fitnessFilteredCount
+          : rows.filter(r => r.machine === m).length,
       }));
       document.getElementById("machineCounts").innerHTML = counts.map(c => `
         <div class="bg-white rounded-2xl shadow-sm p-4">
           <div class="text-slate-500 text-sm">${esc(c.machine)}</div>
           <div class="text-3xl font-bold text-indigo-600 mt-1">${c.count}</div>
         </div>`).join("");
+
+      // ---- Fitness table (separate database table) ----
+      const fRows = applyFilters(fitnessRows, f)
+        .sort((a, b) => a.date.localeCompare(b.date) || a.hour - b.hour || a.name.localeCompare(b.name));
+      document.getElementById("fitnessBody").innerHTML = fRows.map(r => `
+        <tr class="hover:bg-slate-50">
+          <td class="px-4 py-3">${esc(r.date)}</td>
+          <td class="px-4 py-3">${esc(`${pad(r.hour)}:00 – ${pad(r.hour + 1)}:00`)}</td>
+          <td class="px-4 py-3">${esc(r.name)}</td>
+          <td class="px-4 py-3">${esc(r.room)}</td>
+          <td class="px-4 py-3">
+            <button
+              class="text-xs font-medium text-rose-600 border border-rose-300 rounded-lg px-3 py-1 hover:bg-rose-50"
+              onclick='openFitnessDeleteModal(${JSON.stringify(r.date)}, ${r.hour}, ${JSON.stringify(r.name)}, ${JSON.stringify(r.room)})'>
+              Delete
+            </button>
+          </td>
+        </tr>`).join("");
+      document.getElementById("fitnessEmptyState").classList.toggle("hidden", fRows.length > 0);
+      document.getElementById("fitnessRowCount").textContent =
+        `${fRows.length} record${fRows.length === 1 ? "" : "s"}`;
     }
 
     function exportExcel() {
@@ -205,6 +272,20 @@
       });
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Reservations");
+
+      // Second sheet: fitness reservations.
+      const fRows = applyFilters(fitnessRows, f)
+        .sort((a, b) => a.date.localeCompare(b.date) || a.hour - b.hour || a.name.localeCompare(b.name));
+      const fSheetData = fRows.map(r => ({
+        Date: r.date,
+        Time: `${pad(r.hour)}:00 - ${pad(r.hour + 1)}:00`,
+        Name: r.name,
+        "Room No.": r.room,
+      }));
+      const fws = XLSX.utils.json_to_sheet(fSheetData, {
+        header: ["Date", "Time", "Name", "Room No."],
+      });
+      XLSX.utils.book_append_sheet(wb, fws, "Fitness");
 
       const stamp = new Date().toISOString().slice(0, 10);
       const suffix = (f.from || f.to) ? `_${f.from || "start"}_to_${f.to || "end"}` : "";
@@ -229,15 +310,23 @@
       return `${pad(h)}:00 – ${pad(h + interval)}:00`;
     }
 
-    function openDeleteModal(machine, date, hour) {
-      pendingDelete = { machine, date, hour };
-      document.getElementById("deleteDetails").textContent =
-        `${machine} • ${date} • ${timeLabel(hour, machine)}`;
+    function showDeleteModal(detailsText) {
+      document.getElementById("deleteDetails").textContent = detailsText;
       deleteForm.reset();
       deleteError.classList.add("hidden");
       deleteBackdrop.classList.remove("hidden");
       deleteBackdrop.classList.add("flex");
       document.getElementById("deletePassword").focus();
+    }
+
+    function openDeleteModal(machine, date, hour) {
+      pendingDelete = { source: "washing", machine, date, hour };
+      showDeleteModal(`${machine} • ${date} • ${timeLabel(hour, machine)}`);
+    }
+
+    function openFitnessDeleteModal(date, hour, name, room) {
+      pendingDelete = { source: "fitness", date, hour, name, room };
+      showDeleteModal(`🏋️ Fitness • ${date} • ${pad(hour)}:00 – ${pad(hour + 1)}:00 • ${name} (${room})`);
     }
 
     function closeDeleteModal() {
@@ -258,7 +347,8 @@
       deleteError.classList.add("hidden");
 
       try {
-        const res = await fetch(API_URL, {
+        const isFitness = pendingDelete.source === "fitness";
+        const res = await fetch(isFitness ? FITNESS_API : API_URL, {
           method: "DELETE",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ ...pendingDelete, password }),
@@ -270,10 +360,19 @@
           return;
         }
         // Remove from local data and re-render without a full reload.
-        allRows = allRows.filter(r =>
-          !(r.machine === pendingDelete.machine &&
-            r.date === pendingDelete.date &&
-            r.hour === pendingDelete.hour));
+        if (isFitness) {
+          const norm = s => String(s).trim().toLowerCase();
+          fitnessRows = fitnessRows.filter(r =>
+            !(r.date === pendingDelete.date &&
+              r.hour === pendingDelete.hour &&
+              norm(r.name) === norm(pendingDelete.name) &&
+              norm(r.room) === norm(pendingDelete.room)));
+        } else {
+          allRows = allRows.filter(r =>
+            !(r.machine === pendingDelete.machine &&
+              r.date === pendingDelete.date &&
+              r.hour === pendingDelete.hour));
+        }
         closeDeleteModal();
         render();
       } catch (err) {
